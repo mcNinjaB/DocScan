@@ -1,73 +1,76 @@
 import streamlit as st
 import pdfplumber
-import re
-import tempfile
+import pandas as pd
 from PIL import Image
-import pdf2image
+import re
 import io
 
-st.set_page_config(layout="wide")
-st.title("PDF Review and Data Extraction")
-
 def extract_information(pdf_file):
-    extracted_info = []
+    extracted_data = []
     
-    try:
-        with pdfplumber.open(pdf_file) as pdf:
-            for page_num, page in enumerate(pdf.pages, 1):
-                text = page.extract_text()
-                
-                # Pattern matching for various information
-                patterns = {
-                    'Patient Name': r'(?i)name:?\s*([A-Za-z\s]+)',
-                    'DOB': r'(?i)(?:DOB|Date of Birth):?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
-                    'Address': r'(?i)address:?\s*([A-Za-z0-9\s\.,]+)',
-                    'Primary Insurance': r'(?i)primary\s+insurance:?\s*([A-Za-z0-9\s]+)',
-                    'Secondary Insurance': r'(?i)secondary\s+insurance:?\s*([A-Za-z0-9\s]+)'
-                }
-
-                for field, pattern in patterns.items():
-                    matches = re.findall(pattern, text)
-                    if matches:
-                        extracted_info.append(f"{field}: {matches[0].strip()}")
-                        extracted_info.append(f"Found on page {page_num}")
-                        extracted_info.append("-" * 50)
-                        
-        return extracted_info
+    with pdfplumber.open(pdf_file) as pdf:
+        for page_num, page in enumerate(pdf.pages, 1):
+            text = page.extract_text()
+            
+            # Define patterns for insurance and patient information
+            patterns = {
+                'Patient Name': r'(?i)(?:patient\s+name|name)[:\s]+([A-Za-z\s\-]+)',
+                'Date of Birth': r'(?i)(?:DOB|Date\s+of\s+Birth)[:\s]+(\d{2}[/-]\d{2}[/-]\d{4})',
+                'Address': r'(?i)address[:\s]+([A-Za-z0-9\s\.,]+)',
+                'Primary Insurance': r'(?i)(?:primary|first)\s+insurance[:\s]+([A-Za-z0-9\s\.,]+)',
+                'Secondary Insurance': r'(?i)(?:secondary|second)\s+insurance[:\s]+([A-Za-z0-9\s\.,]+)',
+                'Insurance ID': r'(?i)(?:insurance|member|policy)\s+(?:id|number)[:\s]+([A-Za-z0-9\-]+)',
+                'Group Number': r'(?i)group\s+(?:id|number)[:\s]+([A-Za-z0-9\-]+)',
+                'Phone Number': r'(?i)(?:phone|tel)[:\s]+(\d{3}[-.]?\d{3}[-.]?\d{4})',
+                'SSN': r'(?i)(?:ssn|social)[:\s]+(\d{3}[-]?\d{2}[-]?\d{4})'
+            }
+            
+            # Extract data using patterns
+            for data_type, pattern in patterns.items():
+                matches = re.finditer(pattern, text, re.IGNORECASE)
+                for match in matches:
+                    try:
+                        value = match.group(1).strip() if match.groups() else match.group(0).strip()
+                        extracted_data.append({
+                            'Page': page_num,
+                            'Field': data_type,
+                            'Value': value,
+                            'Character Position': match.span()
+                        })
+                    except AttributeError:
+                        continue
     
-    except Exception as e:
-        return [f"Error processing PDF: {str(e)}"]
+    return pd.DataFrame(extracted_data)
 
 def main():
-    # Create two columns
-    col1, col2 = st.columns([6, 4])
+    st.title("Medical Document Review and Data Extraction Tool")
     
-    with col1:
-        st.subheader("PDF Viewer")
-        uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
+    # File upload
+    uploaded_file = st.file_uploader("Upload Medical Document (PDF)", type="pdf")
+    
+    if uploaded_file is not None:
+        # Create two columns for layout
+        col1, col2 = st.columns([0.6, 0.4])  # Adjust ratio to make PDF viewer larger
         
-        if uploaded_file is not None:
-            # Display PDF
-            try:
-                # Convert PDF to images
-                images = pdf2image.convert_from_bytes(uploaded_file.read())
-                
-                # Display first page (you can add pagination if needed)
-                st.image(images[0], use_column_width=True)
-                
-            except Exception as e:
-                st.error(f"Error displaying PDF: {str(e)}")
-    
-    with col2:
-        st.subheader("Extracted Information")
-        if uploaded_file is not None:
-            # Reset file pointer to beginning
-            uploaded_file.seek(0)
-            
+        with col1:
+            st.subheader("Document Viewer")
+            # Display PDF pages as images
+            with pdfplumber.open(uploaded_file) as pdf:
+                for page_num, page in enumerate(pdf.pages):
+                    img = page.to_image()
+                    st.image(img.original, use_column_width=True)
+                    st.markdown(f"Page {page_num + 1}")
+        
+        with col2:
+            st.subheader("Extracted Information")
             # Extract and display information
-            info = extract_information(uploaded_file)
-            for line in info:
-                st.write(line)
-
-if __name__ == "__main__":
-    main()
+            df = extract_information(uploaded_file)
+            
+            # Group by Field for better organization
+            if not df.empty:
+                for field in df['Field'].unique():
+                    field_data = df[df['Field'] == field]
+                    st.markdown(f"**{field}:**")
+                    for _, row in field_data.iterrows():
+                        st.write(f"Value: {row['Value']}")
+                        st.write(f"Found on
