@@ -63,8 +63,13 @@ def main():
             # Extract and display information
             df = extract_information(uploaded_file)
             
-            # Show the full DataFrame with scrollability for large datasets
-            st.dataframe(df)  # Automatically handles large data scrollability
+            # Option 1: Display the full DataFrame with st.write()
+            st.write(df)  # Shows the entire DataFrame
+            
+            # OR
+            
+            # Option 2: Customize st.dataframe() to display more rows
+            st.dataframe(df, height=600)  # Adjust height to display more rows in scrollable view
             
             # Download extracted data
             csv = df.to_csv(index=False)
