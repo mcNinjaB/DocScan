@@ -1,9 +1,7 @@
 import streamlit as st
 import pdfplumber
 import pandas as pd
-from PIL import Image
 import re
-import io
 
 def extract_information(pdf_file):
     extracted_data = []
@@ -12,17 +10,22 @@ def extract_information(pdf_file):
         for page_num, page in enumerate(pdf.pages, 1):
             text = page.extract_text()
             
-            # Define patterns for common data types
+            # Define patterns for common data types and insurance-related terms
             patterns = {
                 'Dates': r'\d{2}[/-]\d{2}[/-]\d{4}',
                 'Emails': r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
                 'Phone Numbers': r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',
-                'Dollar Amounts': r'\$\d+(?:,\d{3})*(?:\.\d{2})?'
+                'Dollar Amounts': r'\$\d+(?:,\d{3})*(?:\.\d{2})?',
+                
+                # Insurance-specific patterns
+                'Policy Numbers': r'\b(?:Policy|Policy Number|ID)\s*[:#]?\s*\d{5,}\b',
+                'Insurance Terms': r'\b(?:Insurance|Policy|Coverage|Claim|Premium|Deductible|Insured|Insurer)\b',
+                'Insured Names': r'\b(?:Insured Name|Policy Holder|Covered Individual)\s*[:#]?\s*\w+\s*\w*\b'
             }
             
             # Extract data using patterns
             for data_type, pattern in patterns.items():
-                matches = re.finditer(pattern, text)
+                matches = re.finditer(pattern, text, re.IGNORECASE)
                 for match in matches:
                     extracted_data.append({
                         'Page': page_num,
@@ -34,7 +37,7 @@ def extract_information(pdf_file):
     return pd.DataFrame(extracted_data)
 
 def main():
-    st.title("PDF Review and Data Extraction Tool")
+    st.title("PDF Insurance Review and Data Extraction Tool")
     
     # File upload
     uploaded_file = st.file_uploader("Upload PDF", type="pdf")
