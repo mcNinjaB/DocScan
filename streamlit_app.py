@@ -34,6 +34,7 @@ def extract_information(pdf_file):
                         'Page': page_num,
                         'Type': data_type,
                         'Value': match.group(1) if data_type == 'Primary Insurance Info' else match.group(),
+                        'Extracted Text': match.group(),  # Show the full matched text
                         'Position': match.span()
                     })
     
@@ -61,7 +62,9 @@ def main():
             st.subheader("Extracted Information")
             # Extract and display information
             df = extract_information(uploaded_file)
-            st.dataframe(df)
+            
+            # Show the full DataFrame with scrollability for large datasets
+            st.dataframe(df)  # Automatically handles large data scrollability
             
             # Download extracted data
             csv = df.to_csv(index=False)
