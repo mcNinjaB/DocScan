@@ -3,8 +3,8 @@ import pdfplumber
 import pandas as pd
 import re
 
-def extract_information(pdf_file):
-    extracted_data = []
+def extract_information_by_page(pdf_file):
+    page_data = {}
     
     with pdfplumber.open(pdf_file) as pdf:
         for page_num, page in enumerate(pdf.pages, 1):
@@ -26,7 +26,8 @@ def extract_information(pdf_file):
                 'Primary Insurance Info': r'\b(?:Primary Insurance|Secondary Insurance|Tertiary Insurance)\s*[:#]?\s*([A-Za-z0-9.,\- ]+)',
             }
             
-            # Extract data using patterns
+            # Extract data for each page
+            extracted_data = []
             for data_type, pattern in patterns.items():
                 matches = re.finditer(pattern, text, re.IGNORECASE)
                 for match in matches:
@@ -34,11 +35,14 @@ def extract_information(pdf_file):
                         'Page': page_num,
                         'Type': data_type,
                         'Value': match.group(1) if data_type == 'Primary Insurance Info' else match.group(),
-                        'Extracted Text': match.group(),  # Show the full matched text
+                        'Extracted Text': match.group(),
                         'Position': match.span()
                     })
+            
+            # Save DataFrame for each page
+            page_data[page_num] = pd.DataFrame(extracted_data)
     
-    return pd.DataFrame(extracted_data)
+    return page_data
 
 def main():
     st.title("PDF Insurance Review and Data Extraction Tool")
@@ -59,22 +63,22 @@ def main():
                     st.image(img.original, use_column_width=True)
         
         with col2:
-            st.subheader("Extracted Information")
-            # Extract and display information
-            df = extract_information(uploaded_file)
+            st.subheader("Extracted Information by Page")
+            # Extract and display information page by page
+            page_data = extract_information_by_page(uploaded_file)
             
-            # Option 1: Display the full DataFrame with st.write()
-            st.write(df)  # Shows the entire DataFrame
-            
-            # OR
-            
-            # Option 2: Customize st.dataframe() to display more rows
-            st.dataframe(df, height=600)  # Adjust height to display more rows in scrollable view
-            
-            # Download extracted data
-            csv = df.to_csv(index=False)
+            for page_num, df in page_data.items():
+                st.markdown(f"### Page {page_num}")
+                if not df.empty:
+                    st.write(df)  # Display the DataFrame for each page
+                else:
+                    st.write("No data extracted on this page.")
+                
+            # Download all extracted data as a single CSV
+            all_data = pd.concat(page_data.values(), ignore_index=True)
+            csv = all_data.to_csv(index=False)
             st.download_button(
-                "Download Extracted Data",
+                "Download All Extracted Data",
                 csv,
                 "extracted_data.csv",
                 "text/csv",
