@@ -89,4 +89,6 @@ class PDFReviewApp(QMainWindow):
                             extracted_info.append("-" * 50)
 
         except Exception as e:
-            extracted_info.append(f"Error processing PDF
+            extracted_info.append(f"Error processing PDF: {str(e)}")
+
+        # Update the info
