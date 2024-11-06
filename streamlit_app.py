@@ -1,7 +1,6 @@
 import streamlit as st
 import pdfplumber
 import pandas as pd
-from PIL import Image
 import re
 import io
 
@@ -53,13 +52,13 @@ def main():
         col1, col2 = st.columns([0.6, 0.4])  # Adjust ratio to make PDF viewer larger
         
         with col1:
-            st.subheader("Document Viewer")
-            # Display PDF pages as images
+            st.subheader("Document Text")
+            # Display PDF text content
             with pdfplumber.open(uploaded_file) as pdf:
                 for page_num, page in enumerate(pdf.pages):
-                    img = page.to_image()
-                    st.image(img.original, use_column_width=True)
-                    st.markdown(f"Page {page_num + 1}")
+                    st.markdown(f"**Page {page_num + 1}**")
+                    text = page.extract_text()
+                    st.text_area(f"Page {page_num + 1} Content", text, height=300)
         
         with col2:
             st.subheader("Extracted Information")
@@ -73,4 +72,4 @@ def main():
                     st.markdown(f"**{field}:**")
                     for _, row in field_data.iterrows():
                         st.write(f"Value: {row['Value']}")
-                        st.write(f"Found on
+                        st
