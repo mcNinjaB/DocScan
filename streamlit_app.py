@@ -1,94 +1,73 @@
-import sys
-import os
-import re
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QPushButton, QWidget, 
-                            QVBoxLayout, QHBoxLayout, QFileDialog, QLabel, 
-                            QTextEdit, QScrollArea)
-from PyQt5.QtCore import Qt
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+import streamlit as st
 import pdfplumber
+import re
 import tempfile
+from PIL import Image
+import pdf2image
+import io
 
-class PDFReviewApp(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.initUI()
+st.set_page_config(layout="wide")
+st.title("PDF Review and Data Extraction")
 
-    def initUI(self):
-        self.setWindowTitle('PDF Review and Data Extraction')
-        self.setGeometry(100, 100, 1400, 800)
+def extract_information(pdf_file):
+    extracted_info = []
+    
+    try:
+        with pdfplumber.open(pdf_file) as pdf:
+            for page_num, page in enumerate(pdf.pages, 1):
+                text = page.extract_text()
+                
+                # Pattern matching for various information
+                patterns = {
+                    'Patient Name': r'(?i)name:?\s*([A-Za-z\s]+)',
+                    'DOB': r'(?i)(?:DOB|Date of Birth):?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
+                    'Address': r'(?i)address:?\s*([A-Za-z0-9\s\.,]+)',
+                    'Primary Insurance': r'(?i)primary\s+insurance:?\s*([A-Za-z0-9\s]+)',
+                    'Secondary Insurance': r'(?i)secondary\s+insurance:?\s*([A-Za-z0-9\s]+)'
+                }
 
-        # Main widget and layout
-        main_widget = QWidget()
-        self.setCentralWidget(main_widget)
-        layout = QHBoxLayout(main_widget)
+                for field, pattern in patterns.items():
+                    matches = re.findall(pattern, text)
+                    if matches:
+                        extracted_info.append(f"{field}: {matches[0].strip()}")
+                        extracted_info.append(f"Found on page {page_num}")
+                        extracted_info.append("-" * 50)
+                        
+        return extracted_info
+    
+    except Exception as e:
+        return [f"Error processing PDF: {str(e)}"]
 
-        # Left panel for PDF viewer
-        left_panel = QWidget()
-        left_layout = QVBoxLayout(left_panel)
+def main():
+    # Create two columns
+    col1, col2 = st.columns([6, 4])
+    
+    with col1:
+        st.subheader("PDF Viewer")
+        uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
         
-        # Upload button
-        upload_btn = QPushButton('Upload PDF')
-        upload_btn.clicked.connect(self.upload_pdf)
-        left_layout.addWidget(upload_btn)
-
-        # PDF viewer
-        self.pdf_viewer = QWebEngineView()
-        self.pdf_viewer.setMinimumWidth(700)
-        left_layout.addWidget(self.pdf_viewer)
-
-        # Right panel for extracted information
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        
-        # Extracted info display
-        right_layout.addWidget(QLabel('Extracted Information:'))
-        self.info_display = QTextEdit()
-        self.info_display.setReadOnly(True)
-        right_layout.addWidget(self.info_display)
-
-        # Add panels to main layout
-        layout.addWidget(left_panel)
-        layout.addWidget(right_panel)
-
-        self.show()
-
-    def upload_pdf(self):
-        file_name, _ = QFileDialog.getOpenFileName(
-            self, "Select PDF", "", "PDF Files (*.pdf)")
-        
-        if file_name:
+        if uploaded_file is not None:
             # Display PDF
-            self.pdf_viewer.setUrl(f'file:///{file_name}')
+            try:
+                # Convert PDF to images
+                images = pdf2image.convert_from_bytes(uploaded_file.read())
+                
+                # Display first page (you can add pagination if needed)
+                st.image(images[0], use_column_width=True)
+                
+            except Exception as e:
+                st.error(f"Error displaying PDF: {str(e)}")
+    
+    with col2:
+        st.subheader("Extracted Information")
+        if uploaded_file is not None:
+            # Reset file pointer to beginning
+            uploaded_file.seek(0)
             
-            # Extract information
-            self.extract_information(file_name)
+            # Extract and display information
+            info = extract_information(uploaded_file)
+            for line in info:
+                st.write(line)
 
-    def extract_information(self, pdf_path):
-        extracted_info = []
-        
-        try:
-            with pdfplumber.open(pdf_path) as pdf:
-                for page_num, page in enumerate(pdf.pages, 1):
-                    text = page.extract_text()
-                    
-                    # Pattern matching for various information
-                    patterns = {
-                        'Patient Name': r'(?i)name:?\s*([A-Za-z\s]+)',
-                        'DOB': r'(?i)(?:DOB|Date of Birth):?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
-                        'Address': r'(?i)address:?\s*([A-Za-z0-9\s\.,]+)',
-                        'Primary Insurance': r'(?i)primary\s+insurance:?\s*([A-Za-z0-9\s]+)',
-                        'Secondary Insurance': r'(?i)secondary\s+insurance:?\s*([A-Za-z0-9\s]+)'
-                    }
-
-                    for field, pattern in patterns.items():
-                        matches = re.findall(pattern, text)
-                        if matches:
-                            extracted_info.append(f"{field}: {matches[0].strip()}")
-                            extracted_info.append(f"Found on page {page_num}")
-                            extracted_info.append("-" * 50)
-
-        except Exception as e:
-            extracted_info.append(f"Error processing PDF: {str(e)}")
-
-        # Update the info
+if __name__ == "__main__":
+    main()
