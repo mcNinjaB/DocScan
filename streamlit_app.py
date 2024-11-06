@@ -20,7 +20,10 @@ def extract_information(pdf_file):
                 # Insurance-specific patterns
                 'Policy Numbers': r'\b(?:Policy|Policy Number|ID)\s*[:#]?\s*\d{5,}\b',
                 'Insurance Terms': r'\b(?:Insurance|Policy|Coverage|Claim|Premium|Deductible|Insured|Insurer)\b',
-                'Insured Names': r'\b(?:Insured Name|Policy Holder|Covered Individual)\s*[:#]?\s*\w+\s*\w*\b'
+                'Insured Names': r'\b(?:Insured Name|Policy Holder|Covered Individual)\s*[:#]?\s*\w+\s*\w*\b',
+                
+                # Capture text following "Primary Insurance," "Secondary Insurance," etc.
+                'Primary Insurance Info': r'\b(?:Primary Insurance|Secondary Insurance|Tertiary Insurance)\s*[:#]?\s*([A-Za-z0-9.,\- ]+)',
             }
             
             # Extract data using patterns
@@ -30,7 +33,7 @@ def extract_information(pdf_file):
                     extracted_data.append({
                         'Page': page_num,
                         'Type': data_type,
-                        'Value': match.group(),
+                        'Value': match.group(1) if data_type == 'Primary Insurance Info' else match.group(),
                         'Position': match.span()
                     })
     
